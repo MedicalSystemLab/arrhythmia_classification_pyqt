@@ -40,6 +40,12 @@ class TimeSeriesPlot(QMainWindow):
         layout.setRowStretch(2, 1)
         layout.setRowStretch(3, 1)
         layout.setRowStretch(4, 1)
+
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
+        layout.setColumnStretch(2, 1)
+        layout.setColumnStretch(3, 1)
+        layout.setColumnStretch(4, 1)
         
         self.graph1 = PlotWidget()
         self.setup_graph(self.graph1, "Real-Time ECG")
@@ -51,11 +57,11 @@ class TimeSeriesPlot(QMainWindow):
 
         self.graph3 = PlotWidget()
         self.setup_graph(self.graph3, "Captured ECG")
-        layout.addWidget(self.graph3, 1, 3, 2, 1)
+        layout.addWidget(self.graph3, 1, 3, 2, 2)
 
         self.graph4 = PlotWidget()
         self.setup_graph(self.graph4, "Detected Arrhythmia")
-        layout.addWidget(self.graph4, 3, 3, 2, 1)
+        layout.addWidget(self.graph4, 3, 3, 2, 2)
 
         # 데이터 초기화
         self.x = list(range(5000))  # 100개의 x축 데이터 (시간)
@@ -97,9 +103,24 @@ class TimeSeriesPlot(QMainWindow):
         captured_data_y = self.y[len(self.x) - self.capture_len:len(self.x)]
         self.captured_data_line.setData(range(len(captured_data_y)), captured_data_y)
         self.data_to_img = self.preprocessing_captured_ecg_data(captured_data_y)
-        self.predict_result = self.model.predict(self.data_to_img, save=True, line_width=1, verbose=False, iou=0.4, conf=0.3, imgsz=320)
-        for predict in self.predict_result[0].boxes:
-            print(predict)
+        self.predict_result = self.model.predict(self.data_to_img, verbose=False, iou=0.4, conf=0.3, imgsz=320)[0].boxes
+        boxes = []
+        roi_boxes = []
+
+        for cls, conf, loc in zip(self.predict_result.cls, self.predict_result.conf, self.predict_result.xyxy):
+            data = {
+                "cls" : int(cls.item()),
+                "conf" : conf.item(),
+                "loc" : loc.tolist()
+            }
+            boxes.append(data)
+
+        # for data in boxes:
+
+
+        print(boxes)
+        
+            
         # print(self.predict_result)
 
     def preprocessing_captured_ecg_data(self, data:list[int]):
@@ -117,14 +138,14 @@ class TimeSeriesPlot(QMainWindow):
         plt.close(fig)
         
 
-        return img_array[:, :, :3]
+        return img_array[:, :, :3] # RGB 배열 리턴
 
     def start_roi_animation(self):
         self.animation = QPropertyAnimation(self, b"roiColor")
-        self.animation.setDuration(2000)  # 1초 동안 애니메이션 진행
-        self.animation.setStartValue(QColor(255, 255, 255, 255))  # 완전 흰색
-        self.animation.setEndValue(QColor(128, 128, 128, 128))  # 원래 회색
-        self.animation.setEasingCurve(QtCore.QEasingCurve.OutCubic)  # 부드러운 감속 애니메이션
+        self.animation.setDuration(2000)
+        self.animation.setStartValue(QColor(255, 255, 255, 255))
+        self.animation.setEndValue(QColor(128, 128, 128, 128))
+        self.animation.setEasingCurve(QtCore.QEasingCurve.OutCubic)
         self.animation.valueChanged.connect(self.update_roi_color)
         self.animation.start()
 
