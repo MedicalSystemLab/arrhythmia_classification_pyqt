@@ -22,7 +22,6 @@ class TimeSeriesPlot(QMainWindow):
         layout = QGridLayout()
         central_widget.setLayout(layout)
         
-        
         self.graph1 = PlotWidget()
         self.setup_graph(self.graph1, "그래프 1 (병합)")
         layout.addWidget(self.graph1, 0, 0, 1, 2)
