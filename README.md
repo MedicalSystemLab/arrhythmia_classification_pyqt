@@ -19,4 +19,4 @@ PYQT를 사용한 부정맥 분류 시제품 개발
   * 하단) 부정맥으로 분류된 파형의 가장 최근 데이터 제공
   
 ### 구성도
-  <img src="./asset/blueprint.png" width="400px">
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="./asset/blueprint.png" width="400px">
