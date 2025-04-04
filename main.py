@@ -12,7 +12,11 @@ import seaborn as sns
 from ultralytics import YOLO
 
 
+
 MODEL = YOLO('./Last 200.pt')
+dummy_input = np.zeros((320, 320, 3), dtype=np.uint8)
+MODEL.predict(dummy_input)
+COLOR_DICT = {i: tuple(int(255 * c) for c in plt.get_cmap("tab20")(i)[:3]) for i in range(16)}
 
 class TimeSeriesPlot(QMainWindow):
     def __init__(self):
@@ -108,22 +112,25 @@ class TimeSeriesPlot(QMainWindow):
 
     def capture_data(self):
         self.start_roi_animation()
+        vb = self.graph3.getViewBox()
+        for item in vb.addedItems[:]:  # 복사해서 순회 (삭제 중 오류 방지)
+            if isinstance(item, QGraphicsRectItem):
+                vb.removeItem(item)
         captured_data_y = self.y[len(self.x) 
                                  - self.capture_len:len(self.x)]
         self.captured_data_line.setData(range(len(captured_data_y)), 
                                         captured_data_y)
         self.data_to_img = self.preprocessing_captured_ecg_data(captured_data_y)
         self.predict_result = MODEL.predict(self.data_to_img, 
-                                            verbose=False, 
+                                            verbose=True, 
                                             iou=0.4, 
                                             conf=0.3, 
                                             imgsz=320)[0].boxes
         boxes = []
-        roi_boxes = []
 
         for cls, conf, loc in zip(self.predict_result.cls, 
                                   self.predict_result.conf, 
-                                  self.predict_result.xyxy):
+                                  self.predict_result.xywh):
             data = {
                 "cls" : int(cls.item()),
                 "conf" : conf.item(),
@@ -132,8 +139,15 @@ class TimeSeriesPlot(QMainWindow):
             boxes.append(data)
 
         for box in boxes:
-            print(box)
+            w = box["loc"][2]/320 * self.capture_len
+            h = box["loc"][3]/320 * 1000
+            x = (box["loc"][0]/320 * self.capture_len) - (w / 2)
+            y = 1000 - (box["loc"][1]/320 * 1000) - (h / 2)
             
+            roi_rect = QGraphicsRectItem(x, y, w, h)
+            roi_rect.setPen(pg.mkPen(COLOR_DICT[box["cls"]], width=1.5))
+            self.graph3.addItem(roi_rect)
+
         
 
     def preprocessing_captured_ecg_data(self, data:list[int]):
@@ -168,7 +182,6 @@ class TimeSeriesPlot(QMainWindow):
         super().resizeEvent(event)
 
     def update_data(self):
-        """실시간 데이터 갱신"""
         try:
             new_value = self.data[self.index]
             self.index += 1
