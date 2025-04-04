@@ -13,12 +13,14 @@ from ultralytics import YOLO
 
 
 
+MODEL = YOLO('./Last 200.pt')
+dummy_input = np.zeros((320, 320, 3), dtype=np.uint8)
+MODEL.predict(dummy_input)
+COLOR_DICT = {i: tuple(int(255 * c) for c in plt.get_cmap("tab20")(i)[:3]) for i in range(16)}
 
 class TimeSeriesPlot(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        self.model = YOLO('./Last 200.pt')
 
         self.setWindowTitle("Arrhythmia Classification pyqt")
         self.setGeometry(100, 100, 900, 500)
@@ -69,8 +71,14 @@ class TimeSeriesPlot(QMainWindow):
 
         # 선 그리기
         self.pen = mkPen(color="k", width=2)
-        self.main_data_line = self.graph1.plot(self.x, self.y, pen=self.pen, name="Signal")
-        self.captured_data_line = self.graph3.plot(range(self.capture_len), [500] * self.capture_len, pen=self.pen, name="Captured Signal")
+        self.main_data_line = self.graph1.plot(self.x, 
+                                               self.y, 
+                                               pen=self.pen, 
+                                               name="Signal")
+        self.captured_data_line = self.graph3.plot(range(self.capture_len),
+                                                  [500] * self.capture_len,
+                                                  pen=self.pen, 
+                                                  name="Captured Signal")
 
         self.timer1 = QTimer()
         self.timer1.setInterval(self.interval1)
@@ -82,8 +90,12 @@ class TimeSeriesPlot(QMainWindow):
         self.timer2.timeout.connect(self.capture_data)
         self.timer2.start()
 
-        self.roi_rect = QGraphicsRectItem(len(self.x)-self.capture_len, 0, self.capture_len, 1000)
-        self.roi_rect.setBrush(QtGui.QBrush(QtGui.QColor(128, 128, 128, 128)))
+        self.roi_rect = QGraphicsRectItem(len(self.x)-self.capture_len, 
+                                          0, 
+                                          self.capture_len, 
+                                          1000)
+        self.roi_rect.setBrush(QtGui.QBrush(
+                                    QtGui.QColor(128, 128, 128, 128)))
         self.roi_rect.setPen(pg.mkPen(None))
         self.graph1.addItem(self.roi_rect)
         
@@ -100,14 +112,25 @@ class TimeSeriesPlot(QMainWindow):
 
     def capture_data(self):
         self.start_roi_animation()
-        captured_data_y = self.y[len(self.x) - self.capture_len:len(self.x)]
-        self.captured_data_line.setData(range(len(captured_data_y)), captured_data_y)
+        vb = self.graph3.getViewBox()
+        for item in vb.addedItems[:]:  # 복사해서 순회 (삭제 중 오류 방지)
+            if isinstance(item, QGraphicsRectItem):
+                vb.removeItem(item)
+        captured_data_y = self.y[len(self.x) 
+                                 - self.capture_len:len(self.x)]
+        self.captured_data_line.setData(range(len(captured_data_y)), 
+                                        captured_data_y)
         self.data_to_img = self.preprocessing_captured_ecg_data(captured_data_y)
-        self.predict_result = self.model.predict(self.data_to_img, verbose=False, iou=0.4, conf=0.3, imgsz=320)[0].boxes
+        self.predict_result = MODEL.predict(self.data_to_img, 
+                                            verbose=True, 
+                                            iou=0.4, 
+                                            conf=0.3, 
+                                            imgsz=320)[0].boxes
         boxes = []
-        roi_boxes = []
 
-        for cls, conf, loc in zip(self.predict_result.cls, self.predict_result.conf, self.predict_result.xyxy):
+        for cls, conf, loc in zip(self.predict_result.cls, 
+                                  self.predict_result.conf, 
+                                  self.predict_result.xywh):
             data = {
                 "cls" : int(cls.item()),
                 "conf" : conf.item(),
@@ -115,13 +138,17 @@ class TimeSeriesPlot(QMainWindow):
             }
             boxes.append(data)
 
-        # for data in boxes:
-
-
-        print(boxes)
-        
+        for box in boxes:
+            w = box["loc"][2]/320 * self.capture_len
+            h = box["loc"][3]/320 * 1000
+            x = (box["loc"][0]/320 * self.capture_len) - (w / 2)
+            y = 1000 - (box["loc"][1]/320 * 1000) - (h / 2)
             
-        # print(self.predict_result)
+            roi_rect = QGraphicsRectItem(x, y, w, h)
+            roi_rect.setPen(pg.mkPen(COLOR_DICT[box["cls"]], width=1.5))
+            self.graph3.addItem(roi_rect)
+
+        
 
     def preprocessing_captured_ecg_data(self, data:list[int]):
         fig, ax = plt.subplots(figsize=(3.2, 3.2), dpi=100)
@@ -137,7 +164,6 @@ class TimeSeriesPlot(QMainWindow):
         img_array = np.array(fig.canvas.renderer.buffer_rgba())  # (H, W, 4) RGBA 배열
         plt.close(fig)
         
-
         return img_array[:, :, :3] # RGB 배열 리턴
 
     def start_roi_animation(self):
@@ -156,7 +182,6 @@ class TimeSeriesPlot(QMainWindow):
         super().resizeEvent(event)
 
     def update_data(self):
-        """실시간 데이터 갱신"""
         try:
             new_value = self.data[self.index]
             self.index += 1
